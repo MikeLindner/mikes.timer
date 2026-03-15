@@ -1,0 +1,94 @@
+esphome:
+  name: duoclock
+  friendly_name: DuoClock Timer
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: "transmission"
+  password: "Party.808!"
+  manual_ip:
+    static_ip: 10.10.10.235
+    gateway: 10.10.10.1
+    subnet: 255.255.255.0
+    dns1: 1.1.1.1
+
+logger:
+  level: DEBUG
+
+api:
+
+ota:
+  platform: esphome
+
+web_server:
+  port: 80
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO13
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Button Them"
+    id: btn_them
+    on_press:
+      then:
+        - light.turn_on: led_them
+        - logger.log: "Button THEM pressed"
+    on_release:
+      then:
+        - light.turn_off: led_them
+        - logger.log: "Button THEM released"
+
+  - platform: gpio
+    pin:
+      number: GPIO15
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Button Me"
+    id: btn_me
+    on_press:
+      then:
+        - light.turn_on: led_me
+        - logger.log: "Button ME pressed"
+    on_release:
+      then:
+        - light.turn_off: led_me
+        - logger.log: "Button ME released"
+
+light:
+  - platform: binary
+    name: "LED Them"
+    id: led_them
+    output: led_them_output
+
+  - platform: binary
+    name: "LED Me"
+    id: led_me
+    output: led_me_output
+
+output:
+  - platform: gpio
+    pin: GPIO16
+    id: led_them_output
+
+  - platform: gpio
+    pin: GPIO17
+    id: led_me_output
+
+sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    update_interval: 10s
+
+  - platform: uptime
+    name: "Uptime"
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
+    ssid:
+      name: "Connected SSID"

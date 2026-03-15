@@ -7,5 +7,5 @@ variable "cloudflare_api_token" {
 variable "device_ip" {
   description = "Static IP address assigned to the ESP32 on the local network"
   type        = string
-  default     = "192.168.1.200"
+  default     = "10.10.10.235"
 }

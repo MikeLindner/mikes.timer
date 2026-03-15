@@ -1,0 +1,21 @@
+[Unit]
+Description=DuoClock Button Monitor
+After=multi-user.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/duoclock
+ExecStart=/usr/bin/python3 /opt/duoclock/duoclock_monitor.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

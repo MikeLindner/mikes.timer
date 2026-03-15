@@ -5,3 +5,17 @@
 .terraform/
 .terraform.lock.hcl
 terraform/terraform.tfvars
+.venv/
+__pycache__/
+*.pyc
+*.pyo   
+*.pyd
+*.egg-info/
+dist/
+build/  
+*.egg
+*.log
+*.bak
+*.swp
+.DS_Store
+.idea/
