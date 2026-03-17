@@ -1,5 +1,26 @@
 #!/usr/bin/env python3
-"""Continuous button+LED test for DuoClock on Pi."""
+"""
+===========================================================================
+ 💡 DuoClock LED Test — Interactive Button + LED Verification
+===========================================================================
+
+ Continuous test tool that lights the corresponding LED for 1 second
+ on each button press. Useful for verifying wiring and button function.
+
+ What it does:
+   1. Waits for a USB serial device (/dev/ttyUSB*)
+   2. Connects and enters a read loop
+   3. On THEM press → red LED on for 1s → off
+   4. On ME press → yellow LED on for 1s → off
+   5. Prints each event with a counter
+
+ Usage (on the Pi):
+   python3 led_test.py
+
+ ⚠️ Stop duoclock-monitor first to avoid port conflicts:
+   sudo systemctl stop duoclock-monitor
+===========================================================================
+"""
 import sys, serial, glob, time
 
 def log(msg):

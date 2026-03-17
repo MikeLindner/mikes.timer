@@ -1,6 +1,30 @@
 #!/bin/bash
+# ===========================================================================
+# 📦 DuoClock Installer — Install/update all services on the Pi Zero W
+# ===========================================================================
+#
+# This script installs or updates both DuoClock services:
+#   🧠 duoclock-monitor — serial reader, timer logic, event logger
+#   🌐 duoclock-web     — HTTP dashboard on port 8080
+#
+# What it does:
+#   1. Copies Python scripts to /opt/duoclock/
+#   2. Installs systemd service files
+#   3. Creates default config (preserves existing)
+#   4. Ensures log file exists with correct permissions
+#   5. Installs pyserial if needed
+#   6. Enables and restarts both services
+#
+# Usage:
+#   sudo bash install_duoclock.sh
+#
+# Safe to run repeatedly — it's idempotent. The only thing it won't
+# overwrite is /etc/duoclock.conf (to preserve your settings).
+#
+# ===========================================================================
 set -e
 
+# Must run as root for systemd and /opt access
 if [[ $EUID -ne 0 ]]; then
     echo "Run as root (sudo)" >&2
     exit 1

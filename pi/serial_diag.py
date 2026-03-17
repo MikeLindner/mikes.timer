@@ -1,5 +1,28 @@
 #!/usr/bin/env python3
-"""Quick serial diagnostic - reads output and sends test commands."""
+"""
+===========================================================================
+ 🔍 DuoClock Serial Diagnostic Tool
+===========================================================================
+
+ Quick diagnostic for verifying ESP32 ↔ Pi serial communication.
+
+ What it does:
+   1. Opens /dev/ttyUSB0 at 115200 baud
+   2. Sends LED test sequence: T1 → T0 → M1 → M0
+   3. Listens for 15 seconds, printing any serial data received
+
+ Usage (on the Pi):
+   python3 serial_diag.py
+
+ Expected output:
+   - LEDs should flash during the test sequence
+   - "DUOCLOCK" identification string on connect
+   - Button presses show as "T" or "M"
+
+ ⚠️ Stop duoclock-monitor first to avoid port conflicts:
+   sudo systemctl stop duoclock-monitor
+===========================================================================
+"""
 import sys, serial, time
 
 dev = "/dev/ttyUSB0"
