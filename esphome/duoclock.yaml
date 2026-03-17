@@ -4,6 +4,8 @@ esphome:
 
 esp32:
   board: esp32dev
+  framework:
+    type: arduino
 
 wifi:
   ssid: "transmission"
@@ -13,6 +15,7 @@ wifi:
     gateway: 10.10.10.1
     subnet: 255.255.255.0
     dns1: 1.1.1.1
+  power_save_mode: LIGHT
 
 logger:
   level: DEBUG
@@ -25,6 +28,11 @@ ota:
 web_server:
   port: 80
 
+globals:
+  - id: led_duration
+    type: int
+    initial_value: '30'
+
 binary_sensor:
   - platform: gpio
     pin:
@@ -33,14 +41,16 @@ binary_sensor:
       inverted: true
     name: "Button Them"
     id: btn_them
+    filters:
+      - delayed_on: 20ms
     on_press:
       then:
-        - light.turn_on: led_them
-        - logger.log: "Button THEM pressed"
-    on_release:
-      then:
-        - light.turn_off: led_them
-        - logger.log: "Button THEM released"
+        - output.turn_off: led_me_output
+        - output.turn_on: led_them_output
+        - logger.log: "Button THEM pressed — LED on"
+        - delay: !lambda "return id(led_duration) * 1000;"
+        - output.turn_off: led_them_output
+        - logger.log: "LED THEM timeout"
 
   - platform: gpio
     pin:
@@ -49,25 +59,16 @@ binary_sensor:
       inverted: true
     name: "Button Me"
     id: btn_me
+    filters:
+      - delayed_on: 20ms
     on_press:
       then:
-        - light.turn_on: led_me
-        - logger.log: "Button ME pressed"
-    on_release:
-      then:
-        - light.turn_off: led_me
-        - logger.log: "Button ME released"
-
-light:
-  - platform: binary
-    name: "LED Them"
-    id: led_them
-    output: led_them_output
-
-  - platform: binary
-    name: "LED Me"
-    id: led_me
-    output: led_me_output
+        - output.turn_off: led_them_output
+        - output.turn_on: led_me_output
+        - logger.log: "Button ME pressed — LED on"
+        - delay: !lambda "return id(led_duration) * 1000;"
+        - output.turn_off: led_me_output
+        - logger.log: "LED ME timeout"
 
 output:
   - platform: gpio
