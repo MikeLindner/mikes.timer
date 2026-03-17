@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 """
 DuoClock Monitor — listens for button presses from the ESP32 DuoClock box
-over USB serial and controls LEDs. All timer logic lives here on the Pi.
+over USB serial, controls LEDs with independent 30-minute timers, and logs
+all events to a file for consumption by other systems.
 
 Protocol:
   ESP32 → Pi:  "T\n" (THEM pressed)  "M\n" (ME pressed)
   Pi → ESP32:  "T1\n" "T0\n" "M1\n" "M0\n" (LED control)
+
+Timer behaviour:
+  - T pressed: red/THEM LED on, 30-min timer starts, logged
+  - M pressed: yellow/ME LED on, 30-min timer starts, logged
+  - Both can be active independently with separate timers
+  - If both buttons arrive within 1s of each other: cancel both, all off
+  - Timer expiry turns the individual LED off and logs it
 """
 
 import configparser
@@ -22,10 +30,11 @@ import serial
 CONFIG_PATH = "/etc/duoclock.conf"
 
 # Defaults (overridden by config file)
-LED_DURATION = 720
+LED_DURATION = 1800  # 30 minutes
 SERIAL_DEVICE = "auto"
 BAUD_RATE = 115200
 LOG_FILE = "/var/log/duoclock.log"
+BOTH_WINDOW = 1.0  # seconds — if both buttons within this window, cancel both
 
 running = True
 
@@ -63,6 +72,12 @@ def signal_handler(signum, _frame):
     running = False
 
 
+def log_event(press_log, event):
+    """Write a timestamped line to the event log file."""
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    press_log.write(f"{ts} {event}\n")
+
+
 def main():
     load_config()
     log = setup_logging()
@@ -72,24 +87,62 @@ def main():
 
     log.info("DuoClock monitor starting (led_duration=%ds)", LED_DURATION)
 
-    # Open press log file
     press_log = open(LOG_FILE, "a", buffering=1)
 
-    led_off_timer = None  # threading.Timer for turning LEDs off
-    active_led = None     # "T" or "M" — which LED is currently on
+    # Independent state per channel
+    timers = {"T": None, "M": None}       # threading.Timer
+    active = {"T": False, "M": False}     # is LED currently on?
+    last_press = {"T": 0.0, "M": 0.0}     # monotonic timestamp of last press
+    labels = {"T": "THEM", "M": "ME"}
 
-    def turn_off_leds(ser):
-        nonlocal active_led
+    def turn_off(ser, channel):
+        """Called by timer expiry — turn off one LED."""
         try:
-            ser.write(b"T0\n")
-            ser.write(b"M0\n")
-            active_led = None
-            log.info("LED timeout — all off")
+            ser.write(f"{channel}0\n".encode())
         except Exception:
             pass
+        active[channel] = False
+        timers[channel] = None
+        event = f"{labels[channel]}_OFF_TIMEOUT"
+        log.info(event)
+        log_event(press_log, event)
+
+    def cancel_all(ser):
+        """Cancel both timers, turn off both LEDs."""
+        for ch in ("T", "M"):
+            if timers[ch] is not None:
+                timers[ch].cancel()
+                timers[ch] = None
+            active[ch] = False
+            try:
+                ser.write(f"{ch}0\n".encode())
+            except Exception:
+                pass
+        log.info("BOTH_CANCEL")
+        log_event(press_log, "BOTH_CANCEL")
+
+    def activate(ser, channel):
+        """Turn on one LED, start its 30-min timer."""
+        # Cancel existing timer for this channel if any
+        if timers[channel] is not None:
+            timers[channel].cancel()
+
+        try:
+            ser.write(f"{channel}1\n".encode())
+        except Exception:
+            pass
+        active[channel] = True
+
+        event = f"{labels[channel]}_ON"
+        log.info(event)
+        log_event(press_log, event)
+
+        t = threading.Timer(LED_DURATION, turn_off, args=[ser, channel])
+        t.daemon = True
+        t.start()
+        timers[channel] = t
 
     while running:
-        # --- find / open device ---
         device = SERIAL_DEVICE
         if device == "auto":
             device = find_device()
@@ -106,7 +159,6 @@ def main():
             time.sleep(2)
             continue
 
-        # --- read loop ---
         try:
             while running:
                 line = ser.readline().decode("ascii", errors="replace").strip()
@@ -120,28 +172,18 @@ def main():
                 if line not in ("T", "M"):
                     continue
 
-                ts = time.strftime("%Y-%m-%d %H:%M:%S")
-                label = "THEM" if line == "T" else "ME"
-                log.info("Button: %s", label)
-                press_log.write(f"{ts} {label}\n")
+                now = time.monotonic()
+                other = "M" if line == "T" else "T"
 
-                # Cancel any pending off-timer
-                if led_off_timer is not None:
-                    led_off_timer.cancel()
+                # Detect both-pressed: other button was pressed within window
+                if now - last_press[other] < BOTH_WINDOW:
+                    cancel_all(ser)
+                    last_press["T"] = 0.0
+                    last_press["M"] = 0.0
+                    continue
 
-                # Light the pressed LED, turn off the other
-                if line == "T":
-                    ser.write(b"T1\n")
-                    ser.write(b"M0\n")
-                else:
-                    ser.write(b"M1\n")
-                    ser.write(b"T0\n")
-                active_led = line
-
-                # Schedule LED off after duration
-                led_off_timer = threading.Timer(LED_DURATION, turn_off_leds, args=[ser])
-                led_off_timer.daemon = True
-                led_off_timer.start()
+                last_press[line] = now
+                activate(ser, line)
 
         except serial.SerialException:
             log.warning("Device disconnected")
@@ -152,13 +194,13 @@ def main():
                 ser.close()
             except Exception:
                 pass
-            if led_off_timer is not None:
-                led_off_timer.cancel()
+            for ch in ("T", "M"):
+                if timers[ch] is not None:
+                    timers[ch].cancel()
 
         log.info("Reconnecting in 2s...")
         time.sleep(2)
 
-    # cleanup
     press_log.close()
     log.info("DuoClock monitor stopped")
     return 0
