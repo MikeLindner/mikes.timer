@@ -1,0 +1,19 @@
+[Unit]
+Description=DuoClock Web Dashboard
+After=network.target duoclock-monitor.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/python3 /opt/duoclock/duoclock_web.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
